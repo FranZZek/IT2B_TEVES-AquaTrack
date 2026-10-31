@@ -49,6 +49,9 @@ public class UserDao {
     private static final String SQL_APPROVE_USER =
             "UPDATE users SET status = 'APPROVED' WHERE id = ?";
 
+    private static final String SQL_UPDATE_ROLE_AND_STATUS =
+            "UPDATE users SET role = ?, status = ? WHERE id = ?";
+
     // Turns a plain password into a SHA-256 hex string, so the database never stores the real password.
     public static String hashPassword(String plainPassword) {
         try {
@@ -141,6 +144,26 @@ public class UserDao {
 
         } catch (SQLException e) {
             System.out.println("Could not approve user: " + e.getMessage());
+            return false;
+        }
+    }
+
+    // Changes the role and status of one account (used by the Admin "Update User" option).
+    // The status is converted to upper case first so it always matches the CHECK (PENDING / APPROVED).
+    // The role is NOT upper-cased: the stored roles are mixed case ("Building Admin", ...),
+    // so upper-casing them would break the CHECK on users.role. AdminMenu sends the exact stored form.
+    // Returns true if a row was updated, false if no account has that id (or the update failed).
+    public boolean updateUserRoleAndStatus(int userId, String newRole, String newStatus) {
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQL_UPDATE_ROLE_AND_STATUS)) {
+
+            ps.setString(1, newRole);
+            ps.setString(2, newStatus.toUpperCase());
+            ps.setInt(3, userId);
+            return ps.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            System.out.println("Could not update user: " + e.getMessage());
             return false;
         }
     }

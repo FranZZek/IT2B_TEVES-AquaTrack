@@ -26,6 +26,10 @@ public class AdminMenu {
     private static final int ROLE_WIDTH = 12;
     private static final int STATUS_WIDTH = 10;
 
+    // The only values the database accepts (see the CHECK constraints in DatabaseInitializer).
+    private static final String[] VALID_ROLES = {"Building Admin", "Pool Attendant", "Billing Clerk"};
+    private static final String[] VALID_STATUSES = {"APPROVED", "PENDING"};
+
     private final User user;
     private final UserDao userDao; // the ONE shared DAO created in Main
     private final Scanner scanner; // the ONE shared Scanner created in Main
@@ -53,15 +57,17 @@ public class AdminMenu {
             System.out.println("[1] View All System Users");
             System.out.println("[2] View Pending Registrations");
             System.out.println("[3] Approve User Account");
-            System.out.println("[4] Logout");
+            System.out.println("[4] Update User Role & Status");
+            System.out.println("[5] Logout");
 
-            int choice = InputHelper.readInt(scanner, "Choose an option: ", 1, 4);
+            int choice = InputHelper.readInt(scanner, "Choose an option: ", 1, 5);
 
             switch (choice) {
                 case 1 -> viewAllUsers();
                 case 2 -> viewPendingUsers();
                 case 3 -> approveUser();
-                case 4 -> {
+                case 4 -> updateUser();
+                case 5 -> {
                     System.out.println("Logged out. See you, " + user.fullName() + "!");
                     loggedIn = false;
                 }
@@ -144,6 +150,138 @@ public class AdminMenu {
                 System.out.println("The account was NOT approved. No changes were made.");
             }
             return;
+        }
+    }
+
+    // [4] Show every user, ask for a User ID, then ask for a new role and status.
+    // Entering 0 at any step cancels without changing anything.
+    // The admin who is logged in cannot change their own account.
+    private void updateUser() {
+        System.out.println();
+        System.out.println("--- Update User Role & Status ---");
+
+        List<User> users = userDao.getAllUsers();
+
+        if (users.isEmpty()) {
+            System.out.println("There are no registered accounts.");
+            return;
+        }
+        printUserTable(users);
+
+        User target;
+        while (true) {
+            int targetId = readIntInput("Enter the User ID to update (0 to cancel): ");
+
+            if (targetId == 0) {
+                cancelUpdate();
+                return;
+            }
+
+            // Self-edit restriction: the active admin account cannot be modified.
+            if (targetId == user.userId()) {
+                System.out.println("WARNING: Modifying the currently active admin account is restricted.");
+                continue;
+            }
+
+            Optional<User> found = users.stream()
+                    .filter(u -> u.userId() == targetId)
+                    .findFirst();
+
+            if (found.isEmpty()) {
+                System.out.println("User ID " + targetId + " does not exist. Please try again.");
+                continue;
+            }
+            target = found.get();
+            break;
+        }
+
+        System.out.println("Updating " + target.username() + " (currently " + target.role()
+                + ", " + target.status() + ").");
+
+        String newRole = readValidRole();
+        if (newRole == null) {
+            cancelUpdate();
+            return;
+        }
+
+        String newStatus = readValidStatus();
+        if (newStatus == null) {
+            cancelUpdate();
+            return;
+        }
+
+        if (userDao.updateUserRoleAndStatus(target.userId(), newRole, newStatus)) {
+            System.out.println("Success! " + target.username() + " (User ID " + target.userId()
+                    + ") is now " + newRole + " / " + newStatus.toUpperCase() + ".");
+        } else {
+            System.out.println("The account was NOT updated. No changes were made.");
+        }
+    }
+
+    private static void cancelUpdate() {
+        System.out.println("Update cancelled. No changes were made.");
+    }
+
+    // ------------------------------------------------- validation wrappers
+
+    // Keeps asking until the user types a whole number (0 or higher).
+    // Letters, symbols, blanks and decimals are rejected with a message instead of crashing.
+    private int readIntInput(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            String text = scanner.nextLine().trim();
+
+            try {
+                int value = Integer.parseInt(text);
+                if (value >= 0) {
+                    return value;
+                }
+                System.out.println("Please enter 0 or a positive number.");
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input. Please enter a whole number.");
+            }
+        }
+    }
+
+    // Keeps asking until the user types a valid role (name or number). Returns null if they type 0.
+    // The role is returned in its exact stored form, e.g. "Pool Attendant".
+    private String readValidRole() {
+        while (true) {
+            System.out.println("Select new role:");
+            for (int i = 0; i < VALID_ROLES.length; i++) {
+                System.out.println("[" + (i + 1) + "] " + VALID_ROLES[i]);
+            }
+            System.out.print("Enter the role name or number (0 to cancel): ");
+            String text = scanner.nextLine().trim();
+
+            if (text.equals("0")) {
+                return null;
+            }
+            for (int i = 0; i < VALID_ROLES.length; i++) {
+                if (text.equalsIgnoreCase(VALID_ROLES[i]) || text.equals(String.valueOf(i + 1))) {
+                    return VALID_ROLES[i];
+                }
+            }
+            System.out.println("Invalid role. Please choose one of: "
+                    + String.join(", ", VALID_ROLES) + ".");
+        }
+    }
+
+    // Keeps asking until the user types APPROVED or PENDING (any letter case). Returns null if they type 0.
+    private String readValidStatus() {
+        while (true) {
+            System.out.print("Enter new status (APPROVED / PENDING, 0 to cancel): ");
+            String text = scanner.nextLine().trim().toUpperCase();
+
+            if (text.equals("0")) {
+                return null;
+            }
+            for (String status : VALID_STATUSES) {
+                if (text.equals(status)) {
+                    return status;
+                }
+            }
+            System.out.println("Invalid status. Please enter APPROVED or PENDING.");
         }
     }
 

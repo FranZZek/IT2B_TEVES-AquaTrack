@@ -1,6 +1,10 @@
 package com.aquatrack;
 
+import com.aquatrack.dao.ActivityLogDao;
 import com.aquatrack.dao.DatabaseInitializer;
+import com.aquatrack.dao.PoolLogDao;
+import com.aquatrack.dao.ResidentDao;
+import com.aquatrack.dao.UnitDao;
 import com.aquatrack.dao.UserDao;
 import com.aquatrack.ui.Authentication;
 
@@ -9,7 +13,7 @@ import java.util.Scanner;
 
 /**
  * Application entry point. Nothing else lives here.
- * Flow: initialize database -> create the shared DAO + Scanner -> hand control to Authentication.
+ * Flow: initialize database -> create the shared DAOs + Scanner -> hand control to Authentication.
  */
 public class Main {
 
@@ -25,10 +29,14 @@ public class Main {
         // 2. Create the shared objects ONCE. Every menu receives these same instances.
         Locale.setDefault(Locale.US); // must come BEFORE the Scanner is created, or the Scanner ignores it
         UserDao userDao = new UserDao();
+        UnitDao unitDao = new UnitDao();
+        ResidentDao residentDao = new ResidentDao();
+        PoolLogDao poolLogDao = new PoolLogDao();
+        ActivityLogDao activityLogDao = new ActivityLogDao();
 
         try (Scanner scanner = new Scanner(System.in)) {
             // 3. Hand over to the login / registration screen.
-            new Authentication(userDao, scanner).start();
+            new Authentication(userDao, unitDao, residentDao, poolLogDao, activityLogDao, scanner).start();
         }
     }
 }

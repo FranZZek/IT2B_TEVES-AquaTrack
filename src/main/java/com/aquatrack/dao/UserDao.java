@@ -52,6 +52,12 @@ public class UserDao {
     private static final String SQL_UPDATE_ROLE_AND_STATUS =
             "UPDATE users SET role = ?, status = ? WHERE id = ?";
 
+    private static final String SQL_DELETE_USER =
+            "DELETE FROM users WHERE id = ?";
+
+    private static final String SQL_COUNT_BY_ROLE =
+            "SELECT COUNT(*) FROM users WHERE role = ?";
+
     // Turns a plain password into a SHA-256 hex string, so the database never stores the real password.
     public static String hashPassword(String plainPassword) {
         try {
@@ -166,6 +172,41 @@ public class UserDao {
             System.out.println("Could not update user: " + e.getMessage());
             return false;
         }
+    }
+
+    // Removes one staff account. Their old audit-log entries are kept (activity_logs.user_id becomes NULL).
+    // Returns true if a row was deleted, false if no account has that id (or the delete failed).
+    public boolean deleteUser(int userId) {
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQL_DELETE_USER)) {
+
+            ps.setInt(1, userId);
+            return ps.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            System.out.println("Could not delete user: " + e.getMessage());
+            return false;
+        }
+    }
+
+    // How many accounts have this exact role. AdminMenu uses it so the last Building Admin cannot be deleted.
+    public int countByRole(String role) {
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(SQL_COUNT_BY_ROLE)) {
+
+            ps.setString(1, role);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Could not count users: " + e.getMessage());
+        }
+
+        return 0;
     }
 
     // ------------------------------------------------------------ helpers
